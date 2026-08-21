@@ -13,10 +13,12 @@ export default async function LoginPage({
     checkEmail?: string;
     callbackUrl?: string;
     template?: string;
+    error?: string;
   }>;
 }) {
   const params = await searchParams;
   const checkEmail = params.checkEmail === "1";
+  const authError = params.error;
   const selectedTemplate = getCampaignTemplate(params.template);
   const templateCallbackUrl = selectedTemplate
     ? `/campaigns/new?template=${selectedTemplate.slug}`
@@ -46,6 +48,18 @@ export default async function LoginPage({
         </div>
 
         <div className="panel rounded p-8 shadow-black/40">
+          {authError && (
+            <div className="mb-5 border border-red-500/30 bg-red-500/10 p-4">
+              <p className="text-sm font-semibold text-red-300">
+                Could not send a magic link
+              </p>
+              <p className="mt-2 text-sm text-muted leading-relaxed">
+                {authError === "Configuration"
+                  ? "Resend rejected the email. The free onboarding@resend.dev sender can only message the email on your Resend account — a second address will fail until you verify your own domain at resend.com/domains and set EMAIL_FROM to an address on that domain."
+                  : "Sign-in failed. Try again, or use the same email that already works."}
+              </p>
+            </div>
+          )}
           {selectedTemplate && !checkEmail && (
             <div className="mb-5 border border-accent/20 bg-accent/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-accent">

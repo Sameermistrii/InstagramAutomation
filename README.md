@@ -4,8 +4,7 @@
 
 Open-sourced ManyChat for Instagram comment-to-DM automation.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/diwenne/unisin?style=flat&color=black)](https://github.com/diwenne/unisin/stargazers)
+[![Stars](https://img.shields.io/github/stars/Sameermistrii/InstagramAutomation?style=flat&color=black)](https://github.com/Sameermistrii/InstagramAutomation/stargazers)
 [![Built with Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
 
 </div>
@@ -56,12 +55,12 @@ The honest version: the code deploys in minutes, but the Meta app setup is the p
 
 ### Deploy the web app
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/diwenne/unisin)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Sameermistrii/InstagramAutomation)
 
 ### Run it locally
 
 ```bash
-git clone https://github.com/diwenne/unisin.git
+git clone https://github.com/Sameermistrii/InstagramAutomation.git
 cd unisin
 npm install
 cp .env.example .env      # then fill in the values, see docs/setup.md
@@ -96,21 +95,8 @@ Issues and pull requests are welcome. If you hit a Meta quirk that is not in the
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
-## Credits
 
-Built and maintained by Diwen Huang.
-
-- GitHub: [@diwenne](https://github.com/diwenne)
-- Website: [diwenhuang.ca](https://diwenhuang.ca)
-- X: [@diwenne](https://x.com/diwennee)
-- Instagram: [@devdiwen](https://instagram.com/devdiwen)
-
-UniSin is a fork of [instagram-comment-to-dm](https://github.com/im-anishraj/instagram-comment-to-dm) by [Anish Raj](https://github.com/im-anishraj), also MIT licensed. The billing layer and plan caps were removed, and the setup was documented from scratch.
 
 ## Star the repo
 
 If UniSin is useful to you, star it. It is the simplest way to help the project reach the next person looking for a free way to do this.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
