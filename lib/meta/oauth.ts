@@ -78,8 +78,6 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
   const params = new URLSearchParams({
     client_id: facebookAppId,
     redirect_uri: redirectUri,
-    // Standard Facebook scope (required but minimal)
-    scope: "pages_show_list",
     // Instagram-specific scopes via instagram_scopes parameter
     instagram_scopes:
       "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
