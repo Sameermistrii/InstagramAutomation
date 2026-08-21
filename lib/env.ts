@@ -32,6 +32,8 @@ export function getEncryptionKeyHex(): string {
 const INSTAGRAM_OAUTH_ENV = [
   "INSTAGRAM_APP_ID",
   "INSTAGRAM_APP_SECRET",
+  "FACEBOOK_APP_ID",
+  "FACEBOOK_APP_SECRET",
   "ENCRYPTION_KEY",
   "NEXTAUTH_SECRET",
 ] as const;
@@ -58,6 +60,7 @@ export const serverEnvSchema = z.object({
   ENCRYPTION_KEY: z.string().regex(HEX_32_BYTE),
   INSTAGRAM_APP_ID: z.string().min(1),
   INSTAGRAM_APP_SECRET: z.string().min(1),
+  FACEBOOK_APP_ID: z.string().min(1),
   FACEBOOK_APP_SECRET: z.string().min(1),
   WEBHOOK_VERIFY_TOKEN: z.string().min(1),
 });
