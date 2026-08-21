@@ -11,8 +11,11 @@ let connection: Redis | null = null;
 
 export function getRedisConnection(): Redis {
   if (!connection) {
-    connection = new Redis(process.env.REDIS_URL!, {
+    const url = process.env.REDIS_URL!;
+    const isTls = url.startsWith("rediss://");
+    connection = new Redis(url, {
       maxRetriesPerRequest: null, // Required by BullMQ
+      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     });
   }
   return connection;
