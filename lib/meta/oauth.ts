@@ -7,9 +7,11 @@ import {
 } from "crypto";
 import { getEncryptionKeyHex, requireEnv } from "@/lib/env";
 
+// Business Login for Instagram (Instagram API with Instagram Login).
+// Do not use api.instagram.com/oauth/authorize — that is the deprecated
+// Basic Display endpoint and Meta renders "Sorry, this page isn't available."
+const INSTAGRAM_OAUTH_URL = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
-// For Instagram Business API, we use Facebook Login dialog with instagram_scopes parameter
-// This allows users to login with their Instagram account (not Facebook)
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
@@ -71,44 +73,38 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
 }
 
 export function getAuthorizationUrl(redirectUri: string, state: string): string {
-  // For Instagram Business API, we use Facebook Login dialog with instagram_scopes parameter
-  // This allows users to login with their Instagram account (not Facebook)
-  const facebookAppId = requireEnv("FACEBOOK_APP_ID");
-  
   const params = new URLSearchParams({
-    client_id: facebookAppId,
+    client_id: requireEnv("INSTAGRAM_APP_ID"),
     redirect_uri: redirectUri,
-    // Instagram-specific scopes via instagram_scopes parameter
-    instagram_scopes:
-      "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
     response_type: "code",
+    // Instagram-only login (not Facebook Login for Business).
+    enable_fb_login: "0",
+    force_authentication: "1",
+    scope:
+      "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
     state,
   });
 
-  return `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`;
+  return `${INSTAGRAM_OAUTH_URL}?${params.toString()}`;
 }
 
 export async function exchangeCodeForToken(
   code: string,
   redirectUri: string
 ): Promise<{ accessToken: string; userId: string }> {
-  // First exchange the code for a Facebook access token
   const body = new URLSearchParams({
-    client_id: requireEnv("FACEBOOK_APP_ID"),
-    client_secret: requireEnv("FACEBOOK_APP_SECRET"),
+    client_id: requireEnv("INSTAGRAM_APP_ID"),
+    client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code,
   });
 
-  const response = await fetch(
-    "https://graph.facebook.com/v18.0/oauth/access_token",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    }
-  );
+  const response = await fetch(INSTAGRAM_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
 
   if (!response.ok) {
     const error = await response.json();
@@ -118,32 +114,9 @@ export async function exchangeCodeForToken(
   }
 
   const data = await response.json();
-  const facebookToken = data.access_token;
-
-  // Now exchange the Facebook token for an Instagram Business token
-  const igBody = new URLSearchParams({
-    grant_type: "ig_exchange_token",
-    client_secret: requireEnv("FACEBOOK_APP_SECRET"),
-    access_token: facebookToken,
-  });
-
-  const igResponse = await fetch(INSTAGRAM_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: igBody.toString(),
-  });
-
-  if (!igResponse.ok) {
-    const error = await igResponse.json();
-    throw new Error(
-      `Instagram token exchange failed: ${error.error_message || JSON.stringify(error)}`
-    );
-  }
-
-  const igData = await igResponse.json();
   return {
-    accessToken: igData.access_token,
-    userId: String(igData.user_id),
+    accessToken: data.access_token,
+    userId: String(data.user_id),
   };
 }
 

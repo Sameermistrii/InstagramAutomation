@@ -3,6 +3,7 @@ import {
   createOAuthState,
   decryptToken,
   encryptToken,
+  getAuthorizationUrl,
   verifyOAuthState,
 } from "../lib/meta/oauth";
 
@@ -29,5 +30,20 @@ describe("OAuth state and token encryption", () => {
   it("rejects tampered OAuth state", () => {
     const state = createOAuthState("workspace_123");
     expect(verifyOAuthState(`${state}tampered`)).toBeNull();
+  });
+
+  it("builds Instagram Business Login authorize URL, not Facebook Login", () => {
+    vi.stubEnv("INSTAGRAM_APP_ID", "1003342969405666");
+    const url = getAuthorizationUrl(
+      "https://instagram-automation-roan.vercel.app/api/instagram/callback",
+      "signed-state"
+    );
+    expect(url.startsWith("https://www.instagram.com/oauth/authorize?")).toBe(
+      true
+    );
+    expect(url).toContain("client_id=1003342969405666");
+    expect(url).toContain("enable_fb_login=0");
+    expect(url).not.toContain("facebook.com");
+    expect(url).not.toContain("api.instagram.com/oauth/authorize");
   });
 });

@@ -167,7 +167,7 @@ https://your-app.vercel.app/api/instagram/callback
 
 No trailing slash. If this is missing or wrong, connecting an account fails with a redirect_uri mismatch. You can register more than one, which is useful if you change domains later; keep the old and new both listed.
 
-You do not need the "Embed URL" that Meta shows here. UniSin builds its own login URL. Users connect by opening your app, going to Settings, and clicking Connect Instagram.
+You do not need the "Embed URL" that Meta shows here. UniSin builds its own login URL (`https://www.instagram.com/oauth/authorize` with your Instagram App ID). Users connect by opening your app, going to Settings, and clicking Connect Instagram. If Connect Instagram shows "Sorry, this page isn't available", the authorize URL is wrong (the old `api.instagram.com/oauth/authorize` host) or `INSTAGRAM_APP_ID` is the Facebook App ID from Basic settings instead of the Instagram App ID from this page.
 
 ### Step 8: Configure the webhook
 
