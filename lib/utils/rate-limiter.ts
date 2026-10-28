@@ -15,6 +15,8 @@
  */
 
 import Redis from "ioredis";
+import { prisma } from "@/lib/db/client";
+import { isInlineProcessing } from "@/lib/runtime-mode";
 
 const RATE_LIMIT_MAX = 750; // private replies per hour, per Meta's documented cap
 const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
@@ -154,10 +156,42 @@ export async function checkRateLimit(
  * This is the worker-safe path; it prevents concurrent jobs from all passing
  * the rate-limit check before any of them increments the Redis counter.
  */
+async function reserveDMSlotInDatabase(
+  instagramAccountId: string,
+  requeueAttempt: number
+): Promise<RateLimitResult> {
+  const since = new Date(Date.now() - RATE_LIMIT_WINDOW * 1000);
+  const count = await prisma.dmLog.count({
+    where: {
+      status: "SENT",
+      dmSentAt: { gte: since },
+      instagramAccount: { instagramId: instagramAccountId },
+    },
+  });
+
+  if (count >= RATE_LIMIT_MAX) {
+    return blockedResult(count, requeueAttempt);
+  }
+
+  return {
+    allowed: true,
+    currentCount: count + 1,
+    remainingDMs: RATE_LIMIT_MAX - (count + 1),
+    shouldRequeue: false,
+    requeueDelayMs: 0,
+    shouldSkip: false,
+    reserved: true,
+  };
+}
+
 export async function reserveDMSlot(
   instagramAccountId: string,
   requeueAttempt: number = 0
 ): Promise<RateLimitResult> {
+  if (isInlineProcessing()) {
+    return reserveDMSlotInDatabase(instagramAccountId, requeueAttempt);
+  }
+
   const client = getRedis();
   const key = `rate:dm:${instagramAccountId}`;
 

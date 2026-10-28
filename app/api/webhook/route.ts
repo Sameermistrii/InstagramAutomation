@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue } from "@/lib/queue/client";
+import { enqueueDm, drainScheduledJobs } from "@/lib/queue/dispatch";
+import { isInlineProcessing } from "@/lib/runtime-mode";
 import {
   parseCommentEvents,
   parseMessageEvents,
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
     { status: 403 }
   );
 }
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -82,15 +85,13 @@ export async function POST(request: NextRequest) {
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
     );
-    const queue = getDMQueue();
-
     for (const event of commentEvents) {
       const account = await prisma.instagramAccount.findUnique({
         where: { instagramId: event.instagramAccountId },
         select: { workspaceId: true },
       });
 
-      await queue.add(
+      await enqueueDm(
         "process-comment",
         {
           instagramAccountId: event.instagramAccountId,
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     );
 
     for (const event of postbackEvents) {
-      await queue.add(
+      await enqueueDm(
         POSTBACK_JOB_NAME,
         {
           instagramAccountId: event.instagramAccountId,
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
         select: { workspaceId: true },
       });
 
-      await queue.add(
+      await enqueueDm(
         MESSAGE_JOB_NAME,
         {
           instagramAccountId: event.instagramAccountId,
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest) {
         if (scheduledAutomationIds.has(automation.id)) continue;
         scheduledAutomationIds.add(automation.id);
 
-        await queue.add(
+        await enqueueDm(
           POSTBACK_JOB_NAME,
           {
             instagramAccountId: event.instagramAccountId,
@@ -225,6 +226,15 @@ export async function POST(request: NextRequest) {
           }
         );
       }
+    }
+
+    if (isInlineProcessing()) {
+      await drainScheduledJobs(5).catch((error) => {
+        console.error(
+          "[Webhook] Delayed job drain failed:",
+          error instanceof Error ? error.message : error
+        );
+      });
     }
 
     await prisma.webhookEvent.update({

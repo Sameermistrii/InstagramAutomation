@@ -345,6 +345,22 @@ model OperationalEvent {
   @@index([createdAt])
 }
 
+// Delayed DM work (follow-ups, rate-limit retries) when the app runs on
+// Vercel without a separate Redis worker.
+model ScheduledJob {
+  id        String   @id @default(cuid())
+  name      String
+  dedupeKey String?  @unique
+  payload   Json
+  runAt     DateTime
+  status    String   @default("PENDING")
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, runAt])
+}
+
 enum WorkspaceRole {
   OWNER
   ADMIN

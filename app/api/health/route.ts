@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import Redis from "ioredis";
 import { prisma } from "@/lib/db/client";
-import { getDMQueue, getRedisConnection } from "@/lib/queue/client";
+import { getDMQueue } from "@/lib/queue/client";
 import { getWorkerHealth } from "@/lib/ops/worker-health";
+import { isInlineProcessing } from "@/lib/runtime-mode";
 
 export const runtime = "nodejs";
 // Health must reflect live state (worker heartbeat, queue depth), never a
@@ -28,14 +30,22 @@ async function checkDatabase(): Promise<HealthCheck> {
 }
 
 async function checkRedis(): Promise<HealthCheck> {
+  const client = new Redis(process.env.REDIS_URL ?? "", {
+    connectTimeout: 4000,
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    retryStrategy: () => null,
+  });
   try {
-    const pong = await getRedisConnection().ping();
+    const pong = await client.ping();
     return { status: pong === "PONG" ? "ok" : "error", detail: pong };
   } catch (error) {
     return {
       status: "error",
       detail: error instanceof Error ? error.message : "Redis check failed",
     };
+  } finally {
+    client.disconnect();
   }
 }
 
@@ -57,6 +67,32 @@ async function checkQueue(): Promise<HealthCheck & { counts?: unknown }> {
 }
 
 export async function GET() {
+  if (isInlineProcessing()) {
+    const database = await checkDatabase();
+    const skipped = {
+      status: "ok" as const,
+      detail: "Replies are sent by the web app. A separate worker is not required.",
+    };
+    const healthy = database.status === "ok";
+    return NextResponse.json(
+      {
+        status: healthy ? "ok" : "degraded",
+        checks: {
+          database,
+          redis: skipped,
+          queue: skipped,
+          worker: {
+            healthy,
+            mode: "inline",
+            heartbeat: null,
+            ageMs: null,
+          },
+        },
+      },
+      { status: healthy ? 200 : 503 }
+    );
+  }
+
   const [database, redis, queue, worker] = await Promise.all([
     checkDatabase(),
     checkRedis(),

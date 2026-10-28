@@ -1,6 +1,5 @@
 import { Worker, type Job } from "bullmq";
 import {
-  getDMQueue,
   getRedisConnection,
   MESSAGE_JOB_NAME,
   POSTBACK_JOB_NAME,
@@ -11,6 +10,7 @@ import {
   type ProcessPostbackJob,
   type ProcessFollowUpJob,
 } from "./client";
+import { enqueueDm } from "./dispatch";
 import { prisma } from "@/lib/db/client";
 import {
   MetaApiError,
@@ -506,7 +506,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           },
         });
 
-        await getDMQueue().add(
+        await enqueueDm(
           "process-comment",
           {
             ...job.data,
@@ -809,7 +809,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-      await getDMQueue().add(
+      await enqueueDm(
         FOLLOWUP_JOB_NAME,
         {
           instagramAccountId: automation.instagramAccount.instagramId,
@@ -1113,7 +1113,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         // here exactly as it does after a button tap. Not scheduled behind the
         // follow prompt — no link went out yet in that branch.
         if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-          await getDMQueue().add(
+          await enqueueDm(
             FOLLOWUP_JOB_NAME,
             {
               instagramAccountId: automation.instagramAccount.instagramId,
@@ -1233,6 +1233,23 @@ async function recordWorkerFailure(
       "[DM Worker] Failed to record worker failure:",
       formatError(recordError)
     );
+  }
+}
+
+export async function runDmJob(name: string, data: DmQueueJob): Promise<void> {
+  const job = {
+    name,
+    data,
+    attemptsMade: 0,
+    id: `inline_${name}`,
+  } as Job<DmQueueJob>;
+
+  try {
+    await processJob(job);
+  } catch (error) {
+    const asError = error instanceof Error ? error : new Error(String(error));
+    await recordWorkerFailure(job, asError);
+    throw asError;
   }
 }
 

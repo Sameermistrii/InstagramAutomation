@@ -1,4 +1,6 @@
+import { timingSafeEqual } from "crypto";
 import NextAuth, { type NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -19,9 +21,59 @@ const smtpServer = process.env.EMAIL_SERVER;
  */
 export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 
+function ownerLogin() {
+  // Bracket access stays runtime. Next inlines process.env.NAME at build time,
+  // which hid the password form on the first deploy.
+  const email = process.env["LOGIN_EMAIL"]?.trim().toLowerCase() ?? "";
+  const password = process.env["LOGIN_PASSWORD"] ?? "";
+  return { email, password, enabled: email.length > 0 && password.length > 0 };
+}
+
+export function passwordLoginEnabled(): boolean {
+  return ownerLogin().enabled;
+}
+
+function passwordsMatch(input: string, expected: string): boolean {
+  const left = Buffer.from(input);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
 export const authConfig = {
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
   providers: [
+    ...(ownerLogin().enabled
+      ? [
+          Credentials({
+            credentials: {
+              email: { label: "Email", type: "email" },
+              password: { label: "Password", type: "password" },
+            },
+            async authorize(credentials) {
+              const { email: loginEmail, password: loginPassword } = ownerLogin();
+              const email = String(credentials?.email ?? "")
+                .trim()
+                .toLowerCase();
+              const password = String(credentials?.password ?? "");
+              if (email !== loginEmail || !passwordsMatch(password, loginPassword)) {
+                return null;
+              }
+
+              const existing = await prisma.user.findFirst({
+                where: { email: { equals: email, mode: "insensitive" } },
+              });
+              const user =
+                existing ??
+                (await prisma.user.create({
+                  data: { email, emailVerified: new Date() },
+                }));
+              await ensureWorkspaceForUser(user.id, user.email);
+              return { id: user.id, email: user.email, name: user.name };
+            },
+          }),
+        ]
+      : []),
     smtpServer
       ? Nodemailer({ server: smtpServer, from: emailFrom })
       : Resend({
@@ -30,9 +82,15 @@ export const authConfig = {
         }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      if (user?.id) token.id = user.id;
+      return token;
+    },
+    async session({ session, user, token }) {
+      const id =
+        user?.id ?? (typeof token?.id === "string" ? token.id : undefined);
+      if (session.user && id) {
+        session.user.id = id;
       }
       return session;
     },
@@ -50,7 +108,10 @@ export const authConfig = {
     error: "/login",
   },
   session: {
-    strategy: "database",
+    // Credentials login cannot open a database session. Password sign-in uses
+    // a signed cookie instead. Email magic links keep database sessions when
+    // no password is configured.
+    strategy: ownerLogin().enabled ? "jwt" : "database",
   },
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,
